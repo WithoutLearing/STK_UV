@@ -9,7 +9,7 @@ namespace BCM检测工装
 {
     public partial class frmBackTemperature : Form
     {
-        private string s;
+        private string s = "";
         private int time2Cnt1;
         private int time2Cnt2;
         private MillisecondTimer timer1s;
@@ -188,13 +188,29 @@ namespace BCM检测工装
             if (PublicData.BackTemperatureCompleteFlag1 && PublicData.BackTemperatureSendCnt1 < 3)
             {
                 PublicData.BackTemperatureSendCnt1++;
-                frmMain.Send_Action(11);//继电器1打开
+                //判断哪个坑里胶水回温好了
+                if (PublicData.WorkStation1)
+                {
+                    PublicData.sendWirteflag = 11;//继电器1打开
+                }
+                else if (PublicData.WorkStation2)
+                {
+                    PublicData.sendWirteflag = 21;//继电器2打开
+                }
             }
 
             if (PublicData.BackTemperatureCompleteFlag2 && PublicData.BackTemperatureSendCnt2 < 3)
             {
                 PublicData.BackTemperatureSendCnt2++;
-                frmMain.Send_Action(11);//继电器1打开
+                //判断哪个坑里胶水回温好了
+                if (PublicData.WorkStation2)
+                {
+                    PublicData.sendWirteflag = 21;//继电器2打开
+                }
+                else if (PublicData.WorkStation1)
+                {
+                    PublicData.sendWirteflag = 11;//继电器1打开
+                }
             }
 
             if (PublicData.NormalTemperatureTimingList.Count > 0)
@@ -205,7 +221,7 @@ namespace BCM检测工装
                     if (time2Cnt1 < 5)
                     {
                         time2Cnt1++;
-                        frmMain.Send_Action(20);//继电器2关闭
+                        PublicData.sendWirteflag = 30;//继电器3关闭
 
                         //   PublicData.GlueSeqNumberList[0] = 0;//赋胶水序号
                         PublicData.GlueStateList[0] = 1;//赋胶水状态
@@ -230,7 +246,7 @@ namespace BCM检测工装
                     if (time2Cnt2 < 5)
                     {
                         time2Cnt2++;
-                        frmMain.Send_Action(20);//继电器2关闭
+                        PublicData.sendWirteflag = 30;//继电器3关闭
 
                         //   PublicData.GlueSeqNumberList[1] = 0;//赋胶水序号
                         PublicData.GlueStateList[1] = 1;//赋胶水状态
@@ -253,7 +269,224 @@ namespace BCM检测工装
         }
         #endregion
 
+        #region 获取扫码枪扫码信息
+        private void guna2TextBox1_TextChanged(object sender, EventArgs e)
+        {
+            s = guna2TextBox1.Text;
+        }
 
+        private void guna2TextBox1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == '\r')
+            {
+                if (s.Length == PublicData.GlueIDLengthSet)
+                {
+                    guna2TextBox1.SelectAll();
+
+                    PublicData.ProductCode = s;
+
+                    if (QueryData(PublicData.ProductCode))//查询到数据库中已存在胶水信息
+                    {
+                        if (PublicData.ProductSeqNumber == 1)//最先回温的胶水
+                        {
+                            PublicData.GlueIDList[0] = PublicData.ProductCode;
+                            PublicData.GlueSeqNumberList[0] = PublicData.ProductSeqNumber;
+                            PublicData.GlueStateList[0] = PublicData.ProductState;
+                            PublicData.BackTemperatureNumberList[0] = PublicData.ProductTimes;
+                            PublicData.BackTemperatureTimingList[0] = PublicData.ProductBackTemperatureTimes;
+                            PublicData.NormalTemperatureTimingList[0] = PublicData.ProductNormalTemperatureTimes;
+
+
+                            //当胶水回温次数到达3次或常温时间超过（60-2）h
+                            if (PublicData.ProductTimes >= PublicData.WorkLimitTimesSet || PublicData.ProductNormalTemperatureTimes >= (PublicData.NormalTemperatureLimitTimeSet - PublicData.BackTemperatureTimeSet))
+                            {
+                                if (PublicData.GlueStateList[0] == 0)
+                                {
+                                    PublicData.GlueSeqNumberList[0] = 0;//赋胶水序号
+                                    PublicData.GlueStateList[0] = 1;//赋胶水状态
+                                    UpdateData(0, PublicData.BackTemperatureNumberList[0]);
+                                }
+
+                            }
+
+                            if (PublicData.GlueStateList[0] == 0)
+                            {
+                                if (PublicData.BackTemperatureNumberList[0] == 1)
+                                {
+                                    if (PublicData.Productdatatime8 != "")
+                                    {
+                                        ResultPictureShow(1);
+                                        PublicData.BackTemperatureNumberList[0]++;
+                                        PublicData.BackTemperatureTimingList[0] = 0;
+                                        UpdateData(0, PublicData.BackTemperatureNumberList[0]);
+                                        timer1s.Start();
+                                        PublicData.BackTemperatureFlag1 = true;
+                                        PublicData.NormalTemperatureFlag1 = true;
+                                    }
+                                }
+                                else if (PublicData.BackTemperatureNumberList[0] == 2)
+                                {
+                                    if (PublicData.Productdatatime9 != "")
+                                    {
+                                        ResultPictureShow(1);
+                                        PublicData.BackTemperatureNumberList[0]++;
+                                        PublicData.BackTemperatureTimingList[0] = 0;
+                                        UpdateData(0, PublicData.BackTemperatureNumberList[0]);
+                                        timer1s.Start();
+                                        PublicData.BackTemperatureFlag1 = true;
+                                        PublicData.NormalTemperatureFlag1 = true;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ResultPictureShow(2);
+                            }
+
+                        }
+                        else if (PublicData.ProductSeqNumber == 2)
+                        {
+                            PublicData.GlueIDList[1] = PublicData.ProductCode;
+                            PublicData.GlueSeqNumberList[1] = PublicData.ProductSeqNumber;
+                            PublicData.GlueStateList[1] = PublicData.ProductState;
+                            PublicData.BackTemperatureNumberList[1] = PublicData.ProductTimes;
+                            PublicData.BackTemperatureTimingList[1] = PublicData.ProductBackTemperatureTimes;
+                            PublicData.NormalTemperatureTimingList[1] = PublicData.ProductNormalTemperatureTimes;
+
+                            //当胶水回温次数到达3次或常温时间超过（60-2）h
+                            if (PublicData.ProductTimes >= PublicData.WorkLimitTimesSet || PublicData.ProductNormalTemperatureTimes >= (PublicData.NormalTemperatureLimitTimeSet - PublicData.BackTemperatureTimeSet))
+                            {
+                                if (PublicData.GlueStateList[1] == 0)
+                                {
+                                    PublicData.GlueSeqNumberList[1] = 0;//赋胶水序号
+                                    PublicData.GlueStateList[1] = 1;//赋胶水状态
+                                    UpdateData(1, PublicData.BackTemperatureNumberList[1]);
+                                }
+
+                            }
+
+                            if (PublicData.GlueStateList[1] == 0)
+                            {
+                                if (PublicData.BackTemperatureNumberList[1] == 1)
+                                {
+                                    if (PublicData.Productdatatime8 != "")
+                                    {
+                                        ResultPictureShow(1);
+                                        PublicData.BackTemperatureNumberList[1]++;
+                                        PublicData.BackTemperatureTimingList[1] = 0;
+                                        UpdateData(1, PublicData.BackTemperatureNumberList[1]);
+                                        timer2s.Start();
+                                        PublicData.BackTemperatureFlag2 = true;
+                                        PublicData.NormalTemperatureFlag2 = true;
+                                    }
+                                }
+                                else if (PublicData.BackTemperatureNumberList[1] == 2)
+                                {
+                                    if (PublicData.Productdatatime9 != "")
+                                    {
+                                        ResultPictureShow(1);
+                                        PublicData.BackTemperatureNumberList[1]++;
+                                        PublicData.BackTemperatureTimingList[1] = 0;
+                                        UpdateData(1, PublicData.BackTemperatureNumberList[1]);
+                                        timer2s.Start();
+                                        PublicData.BackTemperatureFlag2 = true;
+                                        PublicData.NormalTemperatureFlag2 = true;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                ResultPictureShow(2);
+                            }
+                        }
+                        else
+                        {
+                            ResultPictureShow(2);//扫码异常
+                        }
+                    }
+                    else//使用新胶水时
+                    {
+                        int count = RetrievalData();
+                        if (count < 1)//首先检索数据库中是否未使用完的胶水
+                        {
+                            ResultPictureShow(1);
+
+                            PublicData.GlueSeqNumberList.Clear();
+                            PublicData.GlueIDList.Clear();
+                            PublicData.GlueStateList.Clear();
+                            PublicData.BackTemperatureNumberList.Clear();
+                            PublicData.BackTemperatureTimingList.Clear();
+                            PublicData.NormalTemperatureTimingList.Clear();
+
+                            PublicData.GlueSeqNumberList.Add(0);
+                            PublicData.GlueIDList.Add(PublicData.ProductCode);
+                            PublicData.BackTemperatureTimingList.Add(0);
+                            PublicData.NormalTemperatureTimingList.Add(0);
+                            PublicData.BackTemperatureNumberList.Add(0);
+                            PublicData.GlueStateList.Add(0);
+
+                            PublicData.BackTemperatureNumberList[PublicData.GlueIDList.Count - 1]++;
+                            PublicData.GlueSeqNumberList[PublicData.GlueIDList.Count - 1] = PublicData.GlueIDList.Count;
+
+                            InsertData(PublicData.GlueIDList.Count - 1);
+
+                            timer1s.Start();
+                            PublicData.BackTemperatureFlag1 = true;
+                            PublicData.NormalTemperatureFlag1 = true;
+                        }
+                        else if (count < 2)
+                        {
+                            ResultPictureShow(1);
+
+                            PublicData.GlueSeqNumberList.Clear();
+                            PublicData.GlueIDList.Clear();
+                            PublicData.GlueStateList.Clear();
+                            PublicData.BackTemperatureNumberList.Clear();
+                            PublicData.BackTemperatureTimingList.Clear();
+                            PublicData.NormalTemperatureTimingList.Clear();
+
+                            PublicData.GlueSeqNumberList.Add(1);//将之前的胶水序号置1
+                            PublicData.GlueIDList.Add(PublicData.ProductID);
+                            PublicData.GlueStateList.Add(PublicData.ProductState);
+                            PublicData.BackTemperatureNumberList.Add(PublicData.ProductTimes);
+                            PublicData.BackTemperatureTimingList.Add(PublicData.ProductBackTemperatureTimes);
+                            PublicData.NormalTemperatureTimingList.Add(PublicData.ProductNormalTemperatureTimes);
+                            UpdateData(0, 0);
+                            if (PublicData.NormalTemperatureFlag2)
+                            {
+                                timer1s.Start();
+                            }
+
+
+                            PublicData.GlueSeqNumberList.Add(0);
+                            PublicData.GlueIDList.Add(PublicData.ProductCode);
+                            PublicData.GlueStateList.Add(0);
+                            PublicData.BackTemperatureNumberList.Add(0);
+                            PublicData.BackTemperatureTimingList.Add(0);
+                            PublicData.NormalTemperatureTimingList.Add(0);
+
+                            PublicData.BackTemperatureNumberList[PublicData.GlueIDList.Count - 1]++;
+                            PublicData.GlueSeqNumberList[PublicData.GlueIDList.Count - 1] = PublicData.GlueIDList.Count;
+                            InsertData(PublicData.GlueIDList.Count - 1);
+
+                            timer2s.Start();
+                            PublicData.BackTemperatureFlag2 = true;
+                            PublicData.NormalTemperatureFlag2 = true;
+                        }
+                        else
+                        {
+                            ResultPictureShow(0);
+                        }
+                    }
+
+                    ShowData();
+                }
+            }
+        }
+
+        #endregion
+
+        #region 数据库操作
         /// <summary>
         /// 显示刷新产品信息数据
         /// </summary>
@@ -286,224 +519,6 @@ namespace BCM检测工装
             }
         }
 
-        #region 获取扫码枪扫码信息
-        private void guna2TextBox1_TextChanged(object sender, EventArgs e)
-        {
-            s = guna2TextBox1.Text;
-        }
-
-        private void guna2TextBox1_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (e.KeyChar == '\r')
-            {
-                guna2TextBox1.SelectAll();
-
-                PublicData.ProductCode = s;
-
-                if (QueryData(PublicData.ProductCode))//查询到数据库中已存在胶水信息
-                {
-                    if (PublicData.ProductSeqNumber == 1)//最先回温的胶水
-                    {
-                        PublicData.GlueIDList[0] = PublicData.ProductCode;
-                        PublicData.GlueSeqNumberList[0] = PublicData.ProductSeqNumber;
-                        PublicData.GlueStateList[0] = PublicData.ProductState;
-                        PublicData.BackTemperatureNumberList[0] = PublicData.ProductTimes;
-                        PublicData.BackTemperatureTimingList[0] = PublicData.ProductBackTemperatureTimes;
-                        PublicData.NormalTemperatureTimingList[0] = PublicData.ProductNormalTemperatureTimes;
-
-
-                        //当胶水回温次数到达3次或常温时间超过（60-2）h
-                        if (PublicData.ProductTimes >= PublicData.WorkLimitTimesSet || PublicData.ProductNormalTemperatureTimes >= (PublicData.NormalTemperatureLimitTimeSet - PublicData.BackTemperatureTimeSet))
-                        {
-                            if (PublicData.GlueStateList[0] == 0)
-                            {
-                                PublicData.GlueSeqNumberList[0] = 0;//赋胶水序号
-                                PublicData.GlueStateList[0] = 1;//赋胶水状态
-                                UpdateData(0, PublicData.BackTemperatureNumberList[0]);
-                            }
-
-                        }
-
-                        if (PublicData.GlueStateList[0] == 0)
-                        {
-                            if (PublicData.BackTemperatureNumberList[0] == 1)
-                            {
-                                if (PublicData.Productdatatime8 != "")
-                                {
-                                    ResultPictureShow(1);
-                                    PublicData.BackTemperatureNumberList[0]++;
-                                    PublicData.BackTemperatureTimingList[0] = 0;
-                                    UpdateData(0, PublicData.BackTemperatureNumberList[0]);
-                                    timer1s.Start();
-                                    PublicData.BackTemperatureFlag1 = true;
-                                    PublicData.NormalTemperatureFlag1 = true;
-                                }
-                            }
-                            else if (PublicData.BackTemperatureNumberList[0] == 2)
-                            {
-                                if (PublicData.Productdatatime9 != "")
-                                {
-                                    ResultPictureShow(1);
-                                    PublicData.BackTemperatureNumberList[0]++;
-                                    PublicData.BackTemperatureTimingList[0] = 0;
-                                    UpdateData(0, PublicData.BackTemperatureNumberList[0]);
-                                    timer1s.Start();
-                                    PublicData.BackTemperatureFlag1 = true;
-                                    PublicData.NormalTemperatureFlag1 = true;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            ResultPictureShow(2);
-                        }
-
-                    }
-                    else if (PublicData.ProductSeqNumber == 2)
-                    {
-                        PublicData.GlueIDList[1] = PublicData.ProductCode;
-                        PublicData.GlueSeqNumberList[1] = PublicData.ProductSeqNumber;
-                        PublicData.GlueStateList[1] = PublicData.ProductState;
-                        PublicData.BackTemperatureNumberList[1] = PublicData.ProductTimes;
-                        PublicData.BackTemperatureTimingList[1] = PublicData.ProductBackTemperatureTimes;
-                        PublicData.NormalTemperatureTimingList[1] = PublicData.ProductNormalTemperatureTimes;
-
-                        //当胶水回温次数到达3次或常温时间超过（60-2）h
-                        if (PublicData.ProductTimes >= PublicData.WorkLimitTimesSet || PublicData.ProductNormalTemperatureTimes >= (PublicData.NormalTemperatureLimitTimeSet - PublicData.BackTemperatureTimeSet))
-                        {
-                            if (PublicData.GlueStateList[1] == 0)
-                            {
-                                PublicData.GlueSeqNumberList[1] = 0;//赋胶水序号
-                                PublicData.GlueStateList[1] = 1;//赋胶水状态
-                                UpdateData(1, PublicData.BackTemperatureNumberList[1]);
-                            }
-
-                        }
-
-                        if (PublicData.GlueStateList[1] == 0)
-                        {
-                            if (PublicData.BackTemperatureNumberList[1] == 1)
-                            {
-                                if (PublicData.Productdatatime8 != "")
-                                {
-                                    ResultPictureShow(1);
-                                    PublicData.BackTemperatureNumberList[1]++;
-                                    PublicData.BackTemperatureTimingList[1] = 0;
-                                    UpdateData(1, PublicData.BackTemperatureNumberList[1]);
-                                    timer2s.Start();
-                                    PublicData.BackTemperatureFlag2 = true;
-                                    PublicData.NormalTemperatureFlag2 = true;
-                                }
-                            }
-                            else if (PublicData.BackTemperatureNumberList[1] == 2)
-                            {
-                                if (PublicData.Productdatatime9 != "")
-                                {
-                                    ResultPictureShow(1);
-                                    PublicData.BackTemperatureNumberList[1]++;
-                                    PublicData.BackTemperatureTimingList[1] = 0;
-                                    UpdateData(1, PublicData.BackTemperatureNumberList[1]);
-                                    timer2s.Start();
-                                    PublicData.BackTemperatureFlag2 = true;
-                                    PublicData.NormalTemperatureFlag2 = true;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            ResultPictureShow(2);
-                        }
-                    }
-                    else
-                    {
-                        ResultPictureShow(2);//扫码异常
-                    }
-                }
-                else//使用新胶水时
-                {
-                    int count = RetrievalData();
-                    if (count < 1)//首先检索数据库中是否未使用完的胶水
-                    {
-                        ResultPictureShow(1);
-
-                        PublicData.GlueSeqNumberList.Clear();
-                        PublicData.GlueIDList.Clear();
-                        PublicData.GlueStateList.Clear();
-                        PublicData.BackTemperatureNumberList.Clear();
-                        PublicData.BackTemperatureTimingList.Clear();
-                        PublicData.NormalTemperatureTimingList.Clear();
-
-                        PublicData.GlueSeqNumberList.Add(0);
-                        PublicData.GlueIDList.Add(PublicData.ProductCode);
-                        PublicData.BackTemperatureTimingList.Add(0);
-                        PublicData.NormalTemperatureTimingList.Add(0);
-                        PublicData.BackTemperatureNumberList.Add(0);
-                        PublicData.GlueStateList.Add(0);
-
-                        PublicData.BackTemperatureNumberList[PublicData.GlueIDList.Count - 1]++;
-                        PublicData.GlueSeqNumberList[PublicData.GlueIDList.Count - 1] = PublicData.GlueIDList.Count;
-
-                        InsertData(PublicData.GlueIDList.Count - 1);
-
-                        timer1s.Start();
-                        PublicData.BackTemperatureFlag1 = true;
-                        PublicData.NormalTemperatureFlag1 = true;
-                    }
-                    else if (count < 2)
-                    {
-                        ResultPictureShow(1);
-
-                        PublicData.GlueSeqNumberList.Clear();
-                        PublicData.GlueIDList.Clear();
-                        PublicData.GlueStateList.Clear();
-                        PublicData.BackTemperatureNumberList.Clear();
-                        PublicData.BackTemperatureTimingList.Clear();
-                        PublicData.NormalTemperatureTimingList.Clear();
-
-                        PublicData.GlueSeqNumberList.Add(1);//将之前的胶水序号置1
-                        PublicData.GlueIDList.Add(PublicData.ProductID);
-                        PublicData.GlueStateList.Add(PublicData.ProductState);
-                        PublicData.BackTemperatureNumberList.Add(PublicData.ProductTimes);
-                        PublicData.BackTemperatureTimingList.Add(PublicData.ProductBackTemperatureTimes);
-                        PublicData.NormalTemperatureTimingList.Add(PublicData.ProductNormalTemperatureTimes);
-                        UpdateData(0, 0);
-                        if (PublicData.NormalTemperatureFlag2)
-                        {
-                            timer1s.Start();
-                        }
-
-
-                        PublicData.GlueSeqNumberList.Add(0);
-                        PublicData.GlueIDList.Add(PublicData.ProductCode);
-                        PublicData.GlueStateList.Add(0);
-                        PublicData.BackTemperatureNumberList.Add(0);
-                        PublicData.BackTemperatureTimingList.Add(0);
-                        PublicData.NormalTemperatureTimingList.Add(0);
-
-                        PublicData.BackTemperatureNumberList[PublicData.GlueIDList.Count - 1]++;
-                        PublicData.GlueSeqNumberList[PublicData.GlueIDList.Count - 1] = PublicData.GlueIDList.Count;
-                        InsertData(PublicData.GlueIDList.Count - 1);
-
-                        timer2s.Start();
-                        PublicData.BackTemperatureFlag2 = true;
-                        PublicData.NormalTemperatureFlag2 = true;
-                    }
-                    else
-                    {
-                        ResultPictureShow(0);
-                    }
-                }
-
-                ShowData();
-            }
-
-
-
-        }
-
-        #endregion
-
-        #region 数据库操作
         /// <summary>
         /// 查询数据表中胶水信息
         /// </summary>

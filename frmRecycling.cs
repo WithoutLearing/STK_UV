@@ -9,7 +9,7 @@ namespace BCM检测工装
 {
     public partial class frmRecycling : Form
     {
-        private string s;
+        private string s = "";
         private int time1Cnt;
         public frmRecycling()
         {
@@ -333,7 +333,7 @@ namespace BCM检测工装
             time1Cnt++;
             if (time1Cnt < 10)
             {
-                frmMain.Send_Action(20);//继电器2关闭
+                PublicData.sendWirteflag = 30;//继电器3关闭
             }
             else
             {

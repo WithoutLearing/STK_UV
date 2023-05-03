@@ -9,7 +9,7 @@ namespace BCM检测工装
 {
     public partial class frmOnline : Form
     {
-        private string s;
+        private string s = "";
 
         private int time1Cnt;
 
@@ -279,11 +279,14 @@ namespace BCM检测工装
                 PublicData.ProductInformationStruct.Numbers = int.Parse(guna2TextBox4.Text);
                 PublicData.ProductInformationStruct.Informtion = guna2TextBox5.Text;
 
-                PublicData.Writeflag = true;//录入标志
+                if (guna2TextBox2.Text.Length == PublicData.ProductModelLengthSet && guna2TextBox3.Text.Length == PublicData.ProductTimesLengthSet)
+                {
+                    PublicData.Writeflag = true;//录入标志
 
-                guna2TextBox1.SelectAll();
-                guna2TextBox1.Focus();//让按钮获得焦点
-                SetConfig();
+                    guna2TextBox1.SelectAll();
+                    guna2TextBox1.Focus();//让按钮获得焦点
+                    SetConfig();
+                }
             }
             catch (Exception ex)
             {
@@ -541,19 +544,39 @@ namespace BCM检测工装
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            time1Cnt++;
-            if (time1Cnt < 5)
+            if (!PublicData.WorkStation1)
             {
-                frmMain.Send_Action(10);//继电器1关闭
+                time1Cnt++;
+                if (time1Cnt < 5)
+                {
+                    PublicData.sendWirteflag = 10;//继电器1关闭
+                }
+                else if (time1Cnt < 10)
+                {
+                    PublicData.sendWirteflag = 31;//继电器3打开
+                }
+                else
+                {
+                    time1Cnt = 0;
+                    timer1.Stop();
+                }
             }
-            else if (time1Cnt < 10)
+            else if (!PublicData.WorkStation2)
             {
-                frmMain.Send_Action(21);//继电器2打开
-            }
-            else
-            {
-                time1Cnt = 0;
-                timer1.Stop();
+                time1Cnt++;
+                if (time1Cnt < 5)
+                {
+                    PublicData.sendWirteflag = 20;//继电器2关闭
+                }
+                else if (time1Cnt < 10)
+                {
+                    PublicData.sendWirteflag = 31;//继电器3打开
+                }
+                else
+                {
+                    time1Cnt = 0;
+                    timer1.Stop();
+                }
             }
         }
 

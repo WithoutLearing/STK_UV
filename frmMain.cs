@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO.Ports;
 using System.Threading;
 using System.Windows.Forms;
+using static BCM检测工装.PublicFunction;
 
 namespace BCM检测工装
 {
@@ -23,20 +25,17 @@ namespace BCM检测工装
 
         #endregion
 
-        #region 声明委托
-        public static Action<int> Send_Action;
-        #endregion
 
         private string[] portName = new string[] { };
+        int sendflag = 0;
+        List<byte> RecBuffer = new List<byte>();
+
 
 
         public frmMain()
         {
             InitializeComponent();
             Init_ControlProperty();
-
-            //实例化委托
-            Send_Action = new Action<int>(SendData_SerialPort);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -48,6 +47,7 @@ namespace BCM检测工装
         private void frmMain_FormClosing(object sender, FormClosingEventArgs e)
         {
             timerInit.Stop();
+            timer1.Stop();
             serialPort.Close();
             serialPort.Dispose();
         }
@@ -106,6 +106,7 @@ namespace BCM检测工装
             this.guna2PictureBox3.Visible = false;
 
             this.timerInit.Interval = 1000;
+            timer1.Interval = 100;
         }
 
         /// <summary>
@@ -114,6 +115,7 @@ namespace BCM检测工装
         private void Init_ControlMethod()
         {
             timerInit.Start();
+            timer1.Start();
         }
 
         private void Init_SerialPort()
@@ -121,25 +123,83 @@ namespace BCM检测工装
             //先判断电脑上是否存在串口再进行初始化
             if (GetPortName() > 0)
             {
-                serialPort.PortName = portName[0];//选择获取到的第一个串口号
+                serialPort.PortName = GetSerialPortName();
                 serialPort.BaudRate = 9600;
                 serialPort.DataBits = 8;
                 serialPort.StopBits = StopBits.One;
                 serialPort.Parity = Parity.None;
-            }
+                serialPort.DtrEnable = true;
+                serialPort.RtsEnable = false;
 
+                serialPort.Open();
+                serialPort.DataReceived += SerialPort_DataReceived;
+            }
+            else
+            {
+                MessageBox.Show("未发现串口，请检查电脑串口通信线", "通信错误");
+            }
         }
 
+        private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            int length = serialPort.BytesToRead;
+            byte[] data = new byte[length];
+            serialPort.Read(data, 0, length);
+            //1、缓存数据
+            RecBuffer.AddRange(data);
+            //2、解析数据
+            while (RecBuffer.Count >= 2)
+            {
+                if (RecBuffer[0] == 0xEE && RecBuffer[1] == 0xFF)//开关状态   校验帧头
+                {
+                    if (RecBuffer.Count < 9)
+                    {
+                        break;
+                    }
+                    //校验位
+                    if (RecBuffer[7] == ((RecBuffer[2] + RecBuffer[3] + RecBuffer[4] + RecBuffer[5] + RecBuffer[6]) & 0xFF) && RecBuffer[8] == ((RecBuffer[7] + RecBuffer[7]) & 0xFF))
+                    {
+                        //将完整数据复制到目标数组中
+                        RecBuffer.CopyTo(0, PublicData.SwitchState, 0, 9);
+                        //清除数据缓存
+                        RecBuffer.Clear();
+                    }
+
+                }
+                else if (RecBuffer[0] == 0xAA && RecBuffer[1] == 0xBB)//继电器状态   校验帧头
+                {
+                    if (RecBuffer.Count < 8)
+                    {
+                        break;
+                    }
+                    //校验位
+                    if (RecBuffer[7] == ((RecBuffer[2] + RecBuffer[3] + RecBuffer[4] + RecBuffer[5] + RecBuffer[6]) & 0xFF))
+                    {
+                        //将完整数据复制到目标数组中
+                        RecBuffer.CopyTo(0, PublicData.RelayState, 0, 8);
+                        //清除数据缓存
+                        RecBuffer.Clear();
+                    }
+                }
+                else
+                {
+                    //清除数据缓存
+                    RecBuffer.Clear();
+                }
+            }
+        }
 
         #region 窗体最小化、关闭 
         private void guna2PictureBox1_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("关闭软件后,自动线体将无法继续运行，请确认是否关闭", "注意", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                frmMain.Send_Action(20);//继电器2关闭
-                Thread.Sleep(100);
-                frmMain.Send_Action(10);//继电器1关闭
-                Thread.Sleep(100);
+                PublicData.sendWirteflag = 10;//继电器1关闭
+                Thread.Sleep(400);
+                PublicData.sendWirteflag = 20;//继电器2关闭
+                Thread.Sleep(400);
+                PublicData.sendWirteflag = 30;//继电器3关闭
+                Thread.Sleep(400);
                 this.Close();
             }
 
@@ -177,16 +237,31 @@ namespace BCM检测工装
         {
             label3.Text = DateTime.Now.ToLocalTime().ToString();
 
-            if (!serialPort.IsOpen && GetPortName() > 0)
-            {
-                serialPort.Open();
-                serialPort.DataReceived += SerialPort_DataReceived;
-            }
+            PublicData.WorkStation1 = (PublicData.SwitchState[5] & 0x01) == 0x01 ? true : false;//实时检测工位1是否有胶水
+            PublicData.WorkStation2 = (PublicData.SwitchState[5] >> 1 & 0x01) == 0x01 ? true : false;//实时检测工位2是否有胶水
+            PublicData.GlueWorkState = (PublicData.SwitchState[5] >> 2 & 0x01) == 0x01 ? true : false;//胶水是否用光
         }
 
-        private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        private void timer1_Tick(object sender, EventArgs e)
         {
-
+            //与控制器以轮询方式进行通信
+            switch (sendflag)
+            {
+                case 0:
+                    sendflag = 1;
+                    SendData_Read(0);
+                    break;
+                case 1:
+                    sendflag = 2;
+                    SendData_Read(1);
+                    break;
+                case 2:
+                    sendflag = 0;
+                    SendData_Write(PublicData.sendWirteflag);
+                    break;
+                default:
+                    break;
+            }
         }
 
         #endregion
@@ -560,115 +635,6 @@ namespace BCM检测工装
 
 
         /// <summary>
-        /// 关闭所有已经打开的窗体
-        /// </summary>
-        private void FrmClose(byte num)
-        {
-            switch (num)
-            {
-                case 1:
-                    if (frmonline != null)
-                    {
-                        frmonline.Close();
-                        frmonline.Dispose();
-                    }
-
-                    if (frmcompletion != null)
-                    {
-                        frmcompletion.Close();
-                        frmcompletion.Dispose();
-                    }
-
-                    if (frmrecycling != null)
-                    {
-                        frmrecycling.Close();
-                        frmrecycling.Dispose();
-                    }
-                    break;
-                case 2:
-                    if (frmbacktemp != null)
-                    {
-                        frmbacktemp.Close();
-                        frmbacktemp.Dispose();
-                    }
-                    if (frmcompletion != null)
-                    {
-                        frmcompletion.Close();
-                        frmcompletion.Dispose();
-                    }
-
-                    if (frmrecycling != null)
-                    {
-                        frmrecycling.Close();
-                        frmrecycling.Dispose();
-                    }
-                    break;
-                case 3:
-                    if (frmbacktemp != null)
-                    {
-                        frmbacktemp.Close();
-                        frmbacktemp.Dispose();
-                    }
-
-                    if (frmonline != null)
-                    {
-                        frmonline.Close();
-                        frmonline.Dispose();
-                    }
-                    if (frmrecycling != null)
-                    {
-                        frmrecycling.Close();
-                        frmrecycling.Dispose();
-                    }
-                    break;
-                case 4:
-                    if (frmbacktemp != null)
-                    {
-                        frmbacktemp.Close();
-                        frmbacktemp.Dispose();
-                    }
-
-                    if (frmonline != null)
-                    {
-                        frmonline.Close();
-                        frmonline.Dispose();
-                    }
-
-                    if (frmcompletion != null)
-                    {
-                        frmcompletion.Close();
-                        frmcompletion.Dispose();
-                    }
-                    break;
-                default:
-                    if (frmbacktemp != null)
-                    {
-                        frmbacktemp.Close();
-                        frmbacktemp.Dispose();
-                    }
-
-                    if (frmonline != null)
-                    {
-                        frmonline.Close();
-                        frmonline.Dispose();
-                    }
-
-                    if (frmcompletion != null)
-                    {
-                        frmcompletion.Close();
-                        frmcompletion.Dispose();
-                    }
-                    if (frmrecycling != null)
-                    {
-                        frmrecycling.Close();
-                        frmrecycling.Dispose();
-                    }
-                    break;
-            }
-        }
-
-
-        /// <summary>
         /// 读取配置
         /// </summary>
         private void GetConfig()
@@ -676,17 +642,49 @@ namespace BCM检测工装
             PublicData.BackTemperatureTimeSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "回温时长设定值", PublicData.IniPath));
             PublicData.WorkLimitTimesSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "工作次数", PublicData.IniPath));
             PublicData.NormalTemperatureLimitTimeSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "常温累计时长上限", PublicData.IniPath));
-        }
+            PublicData.GlueIDLengthSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "胶水信息长度", PublicData.IniPath));
+            PublicData.ProductModelLengthSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "产品编码长度", PublicData.IniPath));
+            PublicData.ProductTimesLengthSet = int.Parse(ClassLibrary_FQY.INIFilesHelper.IniReadValue("胶水信息", "产品批次号长度", PublicData.IniPath));
 
+        }
+        /// <summary>
+        /// 获取电脑上的串口
+        /// </summary>
+        /// <returns>返回串口数量</returns>
         private int GetPortName()
         {
             portName = SerialPort.GetPortNames();
+
             return portName.Length;
         }
+        /// <summary>
+        /// 仅获取电脑上的USB转串口名称
+        /// </summary>
+        /// <returns>返回串口名称</returns>
+        private string GetSerialPortName()
+        {
+            string name = "";
+            string[] portInfo = GetHardwareInfo(HardwareEnum.Win32_PnPEntity, "Name");//获取电脑上所有设备的名称
+            //检索出USB转串口的COM号
+            foreach (string s in portInfo)
+            {
+                if (s.Length > 10 && s.Contains("USB Serial Port"))
+                {
+                    string[] nameList = s.Split(new char[2] { '(', ')' });
+                    name = nameList[1];
+                    break;
+                }
 
+            }
 
+            return name;
+        }
 
-        public void SendData_SerialPort(int sendflag)
+        /// <summary>
+        /// 配置继电器状态
+        /// </summary>
+        /// <param name="sendflag"></param>
+        private void SendData_Write(int sendflag)
         {
             byte[] data = new byte[10];
 
@@ -730,7 +728,30 @@ namespace BCM检测工装
                         break;
                 }
             }
+        }
 
+        /// <summary>
+        /// 读取控制器状态
+        /// </summary>
+        /// <param name="Readflag">0：读取继电器输出状态
+        /// 1：读取开关输入状态</param>
+        private void SendData_Read(int Readflag)
+        {
+            byte[] data = new byte[9];
+
+            if (serialPort.IsOpen)
+            {
+                if (Readflag == 0)//读取继电器状态
+                {
+                    data = new byte[] { 0xCC, 0xDD, 0xB0, 0x01, 0x00, 0x00, 0x0D, 0xBE, 0x7C };
+                    serialPort.Write(data, 0, data.Length);
+                }
+                else//读取开关量状态
+                {
+                    data = new byte[] { 0xCC, 0xDD, 0xC0, 0x01, 0x00, 0x00, 0x0D, 0xCE, 0x9C };
+                    serialPort.Write(data, 0, data.Length);
+                }
+            }
         }
 
 

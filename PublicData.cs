@@ -64,7 +64,9 @@ namespace BCM检测工装
         public static int BackTemperatureTimeSet;//回温时间设置值(s)
         public static int NormalTemperatureLimitTimeSet;//常温极限时间设置值(s)
         public static int WorkLimitTimesSet;//工作极限次数设置值
-
+        public static int GlueIDLengthSet;//胶水ID长度设置值
+        public static int ProductModelLengthSet;//产品编码长度设置值
+        public static int ProductTimesLengthSet;//产品批次号长度设置值
         public static int BackTemperatureSendCnt1;
         public static int BackTemperatureSendCnt2;
 
@@ -86,7 +88,12 @@ namespace BCM检测工装
         public static List<int> GlueStateList = new List<int> { };//胶水状态
 
 
-  
-
+        public static int sendWirteflag = 0;
+        public static byte AirCylinderflag = 0;
+        public static bool WorkStation1 = false;//工装工位1
+        public static bool WorkStation2 = false;//工装工位2
+        public static bool GlueWorkState = false;//胶水状态 
+        public static byte[] RelayState = new byte[8];//继电器状态RelayState[4]、RelayState[5]
+        public static byte[] SwitchState = new byte[9];//开关状态SwitchState[4]、SwitchState[5]
     }
 }

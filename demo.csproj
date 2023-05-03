@@ -101,6 +101,7 @@
       <HintPath>packages\System.Data.SQLite.Linq.1.0.117.0\lib\net46\System.Data.SQLite.Linq.dll</HintPath>
     </Reference>
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Management" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
     <Reference Include="System.Transactions" />
@@ -229,6 +230,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="版本说明.txt" />
     <None Include="Resources\folder.png" />
     <None Include="Resources\登录界面图片-png_爱给网_aigei_com.png" />
     <None Include="Resources\帮助问号支持%28help question mark supp_爱给网_aigei_com.png" />

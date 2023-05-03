@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Text;
 using System.Windows.Forms;
 
@@ -168,7 +169,7 @@ namespace BCM检测工装
 
 
                 //成功提示
-                if (MessageBox.Show("导出成功，是否立即打开？","提示",MessageBoxButtons.YesNo,MessageBoxIcon.Information)==DialogResult.Yes)
+                if (MessageBox.Show("导出成功，是否立即打开？", "提示", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                 {
                     System.Diagnostics.Process.Start(localFilePath);
                 }
@@ -188,7 +189,39 @@ namespace BCM检测工装
         }
 
 
+        /// <summary>
+        /// 使用windows api获取系统设备信息
+        /// </summary>
+        /// <param name="hardType">设备类型</param>
+        /// <param name="propKey">设备的属性</param>
+        /// <returns></returns>
+        public static string[] GetHardwareInfo(HardwareEnum hardType, string propKey)
+        {
+            List<string> strs = new List<string>();
 
+            using (ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM " + hardType))
+            {
+                var hardInfos = searcher.Get();
+                foreach (var hardInfo in hardInfos)
+                {
+                    if (hardInfo.Properties[propKey].Value != null)
+                    {
+                        strs.Add(hardInfo.Properties[propKey].Value.ToString());
+                    }
+                }
+            }
+
+            return strs.ToArray();
+        }
+        /// <summary>
+        ///  枚举win32 api
+        /// </summary>
+        public enum HardwareEnum
+        {
+            Win32_SerialPort,// 串口
+            Win32_SerialPortConfiguration, // 串口配置
+            Win32_PnPEntity//all device
+        }
 
 
     }
